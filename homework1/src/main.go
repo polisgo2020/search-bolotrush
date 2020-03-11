@@ -43,9 +43,7 @@ func setFileToText(path string) {
 
 		regularText := regexp.MustCompile(`[\W]+`).Split(string(text), -1)
 		regularText = cleanText(regularText)
-		invertIndex(regularText, file.Name())
-		//textMap[file.Name()] = regularText
-
+		invertIndex(regularText, strings.TrimRight(file.Name(), ".txt"))
 	}
 }
 func writeMapToFile(inputMap map[string][]string) {
