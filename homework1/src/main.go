@@ -43,7 +43,7 @@ func setFileToText(path string) {
 
 		regularText := regexp.MustCompile(`[\W]+`).Split(string(text), -1)
 		//regularText = cleanText(regularText)
-		invertIndex(cleanText(regularText), strings.TrimRight(file.Name(), ".txt"))
+		invertIndex(regularText, strings.TrimRight(file.Name(), ".txt"))
 	}
 }
 
@@ -60,6 +60,7 @@ func writeMapToFile(inputMap map[string][]string) {
 }
 
 func invertIndex(inputWords []string, docId string) /*[]string*/ {
+	inputWords = cleanText(inputWords)
 	for _, word := range inputWords {
 		if !isStringInSlice(docId, invertedIndexMap[word]) {
 			invertedIndexMap[word] = append(invertedIndexMap[word], docId)
