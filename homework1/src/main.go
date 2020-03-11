@@ -42,10 +42,11 @@ func setFileToText(path string) {
 		checkError(err)
 
 		regularText := regexp.MustCompile(`[\W]+`).Split(string(text), -1)
-		regularText = cleanText(regularText)
-		invertIndex(regularText, strings.TrimRight(file.Name(), ".txt"))
+		//regularText = cleanText(regularText)
+		invertIndex(cleanText(regularText), strings.TrimRight(file.Name(), ".txt"))
 	}
 }
+
 func writeMapToFile(inputMap map[string][]string) {
 
 	file, err := os.Create("out.txt")
@@ -60,7 +61,7 @@ func writeMapToFile(inputMap map[string][]string) {
 
 func invertIndex(inputWords []string, docId string) /*[]string*/ {
 	for _, word := range inputWords {
-		if !stringInSlice(docId, invertedIndexMap[word]) {
+		if !isStringInSlice(docId, invertedIndexMap[word]) {
 			invertedIndexMap[word] = append(invertedIndexMap[word], docId)
 		}
 	}
@@ -71,7 +72,7 @@ func cleanText(inputWords []string) []string {
 	cleanWords := make([]string, 0)
 	for _, word := range inputWords {
 
-		if stringInSlice(word, stopWORDS) || utf8.RuneCountInString(word) < minWordLength {
+		if isStringInSlice(word, stopWORDS) || utf8.RuneCountInString(word) < minWordLength {
 			continue
 		}
 		word = strings.ToLower(word)
@@ -80,7 +81,7 @@ func cleanText(inputWords []string) []string {
 	return cleanWords
 }
 
-func stringInSlice(a string, list []string) bool {
+func isStringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if b == a {
 			return true
