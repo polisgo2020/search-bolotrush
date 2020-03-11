@@ -23,7 +23,7 @@ var (
 )
 
 func main() {
-	setFileToText("homework1/texts")
+	setFileToText("homework1/books")
 	/*	for key, _ := range invertedIndexMap {
 			fmt.Println(key + ": " + strconv.Itoa(utf8.RuneCountInString(key)))
 		}
