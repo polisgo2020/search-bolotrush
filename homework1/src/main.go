@@ -12,27 +12,28 @@ import (
 const minWordLength = 2
 
 var (
-	stopWORDS = []string{
-		"",
-		" ",
-		"a",
-		"an",
-		"the",
+	stopWORDS = map[string]bool{
+		"":    true,
+		" ":   true,
+		"a":   true,
+		"an":  true,
+		"the": true,
 	}
 	invertedIndexMap = make(map[string][]string)
 )
 
 func main() {
+	if len(os.Args) >= 2 {
+		fileToText(os.Args[1])
+	} else {
+		fmt.Println("File path is not in program arguments!")
+		os.Exit(1)
+	}
 
-	setFileToText("homework1/books")
-	/*	for key, _ := range invertedIndexMap {
-			fmt.Println(key + ": " + strconv.Itoa(utf8.RuneCountInString(key)))
-		}
-	*/
 	writeMapToFile(invertedIndexMap)
 }
 
-func setFileToText(path string) {
+func fileToText(path string) {
 
 	files, err := ioutil.ReadDir(path)
 	checkError(err)
@@ -74,7 +75,7 @@ func cleanText(inputWords []string) []string {
 	cleanWords := make([]string, 0)
 	for _, word := range inputWords {
 
-		if isStringInSlice(word, stopWORDS) || utf8.RuneCountInString(word) < minWordLength {
+		if stopWORDS[word] || utf8.RuneCountInString(word) < minWordLength {
 			continue
 		}
 		word = strings.ToLower(word)
