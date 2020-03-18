@@ -23,13 +23,11 @@ var (
 )
 
 func main() {
-	if len(os.Args) >= 2 {
-		fileToText(os.Args[1])
-	} else {
+	if len(os.Args) < 2 {
 		fmt.Println("File path is not in program arguments!")
-		os.Exit(1)
+		return
 	}
-
+	fileToText(os.Args[1])
 	writeMapToFile(invertedIndexMap)
 }
 
@@ -37,13 +35,14 @@ func fileToText(path string) {
 
 	files, err := ioutil.ReadDir(path)
 	checkError(err)
+	regCompiled := regexp.MustCompile(`[\W]+`)
 
 	for _, file := range files {
 
 		text, err := ioutil.ReadFile(path + "/" + file.Name())
 		checkError(err)
 
-		regularText := regexp.MustCompile(`[\W]+`).Split(string(text), -1)
+		regularText := regCompiled.Split(string(text), -1)
 		invertIndex(regularText, strings.TrimRight(file.Name(), ".txt"))
 	}
 }
@@ -60,7 +59,7 @@ func writeMapToFile(inputMap map[string][]string) {
 	}
 }
 
-func invertIndex(inputWords []string, docId string) /*[]string*/ {
+func invertIndex(inputWords []string, docId string) {
 
 	inputWords = cleanText(inputWords)
 	for _, word := range inputWords {
