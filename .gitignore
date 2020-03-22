@@ -1,1 +1,4 @@
-/.idea/
+.idea/*
+.gitignore
+books/*
+out.txt
