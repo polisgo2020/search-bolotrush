@@ -7,16 +7,48 @@ import (
 
 const minWordLength = 2
 
-var InvertedIndexMap = make(map[string][]string)
+type wordStruct struct {
+	Doc      string
+	Position []int
+}
+type InvMap map[string][]wordStruct
+
+var InvertedIndexMap = make(InvMap)
+
+func (p InvMap) isWordInList(word string, docId string) (int, bool) {
+	for i, ind := range p[word] {
+		if ind.Doc == docId {
+			return i, true
+		}
+	}
+	return -1, false
+}
 
 func InvertIndex(inputWords []string, docId string) {
 
 	inputWords = cleanText(inputWords)
-	for _, word := range inputWords {
-		if !isStringInSlice(docId, InvertedIndexMap[word]) {
-			InvertedIndexMap[word] = append(InvertedIndexMap[word], docId)
+	for i, word := range inputWords {
+		if index, ok := InvertedIndexMap.isWordInList(word, docId); !ok {
+
+			structure := wordStruct{
+				Doc:      docId,
+				Position: make([]int, 0),
+			}
+
+			structure.Position = append(structure.Position, i)
+			InvertedIndexMap[word] = append(InvertedIndexMap[word], structure)
+		} else if index != -1 {
+			InvertedIndexMap[word][index].Position = append(InvertedIndexMap[word][index].Position, i)
 		}
 	}
+}
+
+func GetDocStrSlice(slice []wordStruct) []string {
+	outSlice := make([]string, 0)
+	for _, doc := range slice {
+		outSlice = append(outSlice, doc.Doc)
+	}
+	return outSlice
 }
 
 func cleanText(inputWords []string) []string {
@@ -31,14 +63,4 @@ func cleanText(inputWords []string) []string {
 		cleanWords = append(cleanWords, word)
 	}
 	return cleanWords
-}
-
-func isStringInSlice(a string, list []string) bool {
-
-	for _, b := range list {
-		if b == a {
-			return true
-		}
-	}
-	return false
 }
