@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/polisgo2020/search-bolotrush/index"
-	"github.com/polisgo2020/search-bolotrush/search"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -28,7 +27,7 @@ func main() {
 			fmt.Println("There's nothing to search")
 			return
 		}
-		matchListOut := search.Searcher(index.InvertedIndexMap, os.Args[3:])
+		matchListOut := index.Searcher(index.InvertedIndexMap, os.Args[3:])
 		fmt.Println("Search result:")
 		if len(matchListOut) > 0 {
 			for i, match := range matchListOut {

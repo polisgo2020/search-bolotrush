@@ -1,6 +1,7 @@
 package index
 
 import (
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -11,9 +12,13 @@ type wordStruct struct {
 	Doc      string
 	Position []int
 }
+
 type InvMap map[string][]wordStruct
 
-var InvertedIndexMap = make(InvMap)
+type MatchList struct {
+	Matches  int
+	FileName string
+}
 
 func (p InvMap) isWordInList(word string, docId string) (int, bool) {
 	for i, ind := range p[word] {
@@ -24,6 +29,8 @@ func (p InvMap) isWordInList(word string, docId string) (int, bool) {
 	return -1, false
 }
 
+var InvertedIndexMap = make(InvMap)
+
 func InvertIndex(inputWords []string, docId string) {
 
 	inputWords = cleanText(inputWords)
@@ -32,7 +39,7 @@ func InvertIndex(inputWords []string, docId string) {
 
 			structure := wordStruct{
 				Doc:      docId,
-				Position: make([]int, 0),
+				Position: []int{},
 			}
 
 			structure.Position = append(structure.Position, i)
@@ -49,6 +56,33 @@ func GetDocStrSlice(slice []wordStruct) []string {
 		outSlice = append(outSlice, doc.Doc)
 	}
 	return outSlice
+}
+
+func Searcher(invertMap InvMap, arguments []string) []MatchList {
+
+	var matchesSlice []MatchList
+	matchesMap := make(map[string]int, 0)
+
+	arguments = cleanText(arguments)
+	for _, word := range arguments {
+		if docNames, ok := invertMap[word]; ok {
+			for _, doc := range docNames {
+				matchesMap[doc.Doc] += len(doc.Position)
+			}
+		}
+	}
+	for name, matches := range matchesMap {
+		matchesSlice = append(matchesSlice, MatchList{
+			Matches:  matches,
+			FileName: name,
+		})
+	}
+	if len(matchesSlice) > 0 {
+		sort.Slice(matchesSlice, func(i, j int) bool {
+			return matchesSlice[i].Matches > matchesSlice[j].Matches
+		})
+	}
+	return matchesSlice
 }
 
 func cleanText(inputWords []string) []string {
