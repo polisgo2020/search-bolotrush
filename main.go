@@ -1,33 +1,37 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/polisgo2020/search-bolotrush/index"
 	"io/ioutil"
+	"log"
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Println("Not enough program arguments!")
-		return
+		log.Fatal(errors.New("not enough program arguments"))
 	}
-	fileToText(os.Args[1])
+	InvertedIndexMap := index.NewInvMap()
+	mutex := &sync.Mutex{}
+	textBuilder(os.Args[1], &InvertedIndexMap, mutex)
 
 	switch os.Args[2] {
 	case "index":
-
-		writeMapToFile(index.InvertedIndexMap)
+		mutex.Lock()
+		writeMapToFile(&InvertedIndexMap)
+		mutex.Unlock()
 
 	case "search":
-
 		if len(os.Args) < 4 {
 			fmt.Println("There's nothing to search")
 			return
 		}
-		matchListOut := index.Searcher(index.InvertedIndexMap, os.Args[3:])
+		matchListOut := index.Searcher(&InvertedIndexMap, os.Args[3:])
 		fmt.Println("Search result:")
 		if len(matchListOut) > 0 {
 			for i, match := range matchListOut {
@@ -39,6 +43,7 @@ func main() {
 		} else {
 			fmt.Println("There's no results :(")
 		}
+
 	default:
 
 		fmt.Println("Command is unknown. Try again.")
@@ -46,29 +51,47 @@ func main() {
 	}
 }
 
-func fileToText(path string) {
+func textBuilder(path string, InvertedIndexMap *index.InvMap, mutex *sync.Mutex) {
 
 	files, err := ioutil.ReadDir(path)
 	checkError(err)
 
+	textChannel := make(chan index.StraightIndex)
+	wg := &sync.WaitGroup{}
+
+	go index.AsyncInvertIndex(textChannel, InvertedIndexMap, mutex)
 	regCompiled := regexp.MustCompile(`[\W]+`)
 	for _, file := range files {
-
-		text, err := ioutil.ReadFile(path + "/" + file.Name())
-		checkError(err)
-
-		regularText := regCompiled.Split(string(text), -1)
-
-		index.InvertIndex(regularText, strings.TrimRight(file.Name(), ".txt"))
+		wg.Add(1)
+		fmt.Println("tut")
+		go asyncRead(file, regCompiled, textChannel, path, wg)
 	}
+	fmt.Println("tuta")
+	wg.Wait()
+
+	fmt.Println("tutaaaaa")
 }
 
-func writeMapToFile(inputMap index.InvMap) {
+func asyncRead(file os.FileInfo, reg *regexp.Regexp, ch chan<- index.StraightIndex, path string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	//chMap := make(map[string][]string)
+	text, err := ioutil.ReadFile(path + "/" + file.Name())
+	checkError(err)
+	chStruct := index.StraightIndex{
+		FileName: strings.TrimRight(file.Name(), ".txt"),
+		Text:     reg.Split(string(text), -1),
+	}
+	ch <- chStruct
+	fmt.Println("Вызвал " + file.Name())
+}
+
+func writeMapToFile(inputMap *index.InvMap) {
 
 	file, err := os.Create("out.txt")
 	checkError(err)
 
-	for key, value := range inputMap {
+	for key, value := range *inputMap {
 		strSlice := index.GetDocStrSlice(value)
 		_, err := file.WriteString(key + ": {" + strings.Join(strSlice, ",") + "}\n")
 		checkError(err)
