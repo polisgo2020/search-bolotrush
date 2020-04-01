@@ -36,36 +36,15 @@ func (m InvMap) isWordInList(word string, docId string) (int, bool) {
 	return -1, false
 }
 
-//var InvertedIndexMap = make(InvMap)
-
 func NewInvMap() InvMap {
 	index := make(InvMap)
 	return index
 }
 
-func InvertIndex(inputWords []string, docId string, myMap *InvMap) {
-
-	inputWords = cleanText(inputWords)
-	for i, word := range inputWords {
-		if index, ok := (*myMap).isWordInList(word, docId); !ok {
-
-			structure := wordStruct{
-				Doc:      docId,
-				Position: []int{},
-			}
-
-			structure.Position = append(structure.Position, i)
-			(*myMap)[word] = append((*myMap)[word], structure)
-		} else if index != -1 {
-			(*myMap)[word][index].Position = append((*myMap)[word][index].Position, i)
-		}
-	}
-}
-
-func AsyncInvertIndex(docChan chan StraightIndex, myMap *InvMap, mutex *sync.Mutex) {
+func AsyncInvertIndex(docChan chan StraightIndex, myMap *InvMap, mutex *sync.Mutex, wg *sync.WaitGroup) {
 
 	for input := range docChan {
-
+		wg.Add(1)
 		inputWords := input.Text
 		docId := input.FileName
 		inputWords = cleanText(inputWords)
@@ -74,6 +53,7 @@ func AsyncInvertIndex(docChan chan StraightIndex, myMap *InvMap, mutex *sync.Mut
 
 		for i, word := range inputWords {
 			mutex.Lock()
+
 			if index, ok := (*myMap).isWordInList(word, docId); !ok {
 
 				structure := wordStruct{
@@ -88,8 +68,8 @@ func AsyncInvertIndex(docChan chan StraightIndex, myMap *InvMap, mutex *sync.Mut
 			}
 			mutex.Unlock()
 		}
+		wg.Done()
 	}
-	close(docChan)
 }
 
 func GetDocStrSlice(slice []wordStruct) []string {

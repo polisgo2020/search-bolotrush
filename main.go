@@ -17,14 +17,12 @@ func main() {
 		log.Fatal(errors.New("not enough program arguments"))
 	}
 	InvertedIndexMap := index.NewInvMap()
-	mutex := &sync.Mutex{}
-	textBuilder(os.Args[1], &InvertedIndexMap, mutex)
+
+	textBuilder(os.Args[1], &InvertedIndexMap)
 
 	switch os.Args[2] {
 	case "index":
-		mutex.Lock()
 		writeMapToFile(&InvertedIndexMap)
-		mutex.Unlock()
 
 	case "search":
 		if len(os.Args) < 4 {
@@ -45,37 +43,33 @@ func main() {
 		}
 
 	default:
-
 		fmt.Println("Command is unknown. Try again.")
 		return
 	}
 }
 
-func textBuilder(path string, InvertedIndexMap *index.InvMap, mutex *sync.Mutex) {
+func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 
 	files, err := ioutil.ReadDir(path)
 	checkError(err)
 
 	textChannel := make(chan index.StraightIndex)
 	wg := &sync.WaitGroup{}
+	mutex := &sync.Mutex{}
 
-	go index.AsyncInvertIndex(textChannel, InvertedIndexMap, mutex)
+	go index.AsyncInvertIndex(textChannel, InvertedIndexMap, mutex, wg)
+
 	regCompiled := regexp.MustCompile(`[\W]+`)
 	for _, file := range files {
 		wg.Add(1)
-		fmt.Println("tut")
 		go asyncRead(file, regCompiled, textChannel, path, wg)
 	}
-	fmt.Println("tuta")
 	wg.Wait()
-
-	fmt.Println("tutaaaaa")
+	close(textChannel)
 }
 
 func asyncRead(file os.FileInfo, reg *regexp.Regexp, ch chan<- index.StraightIndex, path string, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	//chMap := make(map[string][]string)
 	text, err := ioutil.ReadFile(path + "/" + file.Name())
 	checkError(err)
 	chStruct := index.StraightIndex{
