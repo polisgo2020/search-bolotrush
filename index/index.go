@@ -1,7 +1,7 @@
 package index
 
 import (
-	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -10,12 +10,14 @@ import (
 
 const minWordLength = 2
 
-type wordStruct struct {
-	Doc      string
-	Position []int
+var regCompiled = regexp.MustCompile(`[\W]+`)
+
+type WordInfo struct {
+	FileName  string
+	Positions []int
 }
 
-type InvMap map[string][]wordStruct
+type InvMap map[string][]WordInfo
 
 type MatchList struct {
 	Matches  int
@@ -24,16 +26,8 @@ type MatchList struct {
 
 type StraightIndex struct {
 	FileName string
-	Text     []string
-}
-
-func (m InvMap) isWordInList(word string, docId string) (int, bool) {
-	for i, ind := range m[word] {
-		if ind.Doc == docId {
-			return i, true
-		}
-	}
-	return -1, false
+	Text     string
+	Mutex    sync.Mutex
 }
 
 func NewInvMap() InvMap {
@@ -41,55 +35,51 @@ func NewInvMap() InvMap {
 	return index
 }
 
-func AsyncInvertIndex(docChan chan StraightIndex, myMap *InvMap, mutex *sync.Mutex, wg *sync.WaitGroup) {
-
+func (thisMap *InvMap) AsyncInvertIndex(docChan chan StraightIndex, mutex *sync.Mutex, wg *sync.WaitGroup) {
 	for input := range docChan {
 		wg.Add(1)
-		inputWords := input.Text
-		docId := input.FileName
-		inputWords = cleanText(inputWords)
 
-		fmt.Println("document: " + docId)
+		mutex.Lock()
+		thisMap.InvertIndex(input.Text, input.FileName)
+		mutex.Unlock()
 
-		for i, word := range inputWords {
-			mutex.Lock()
-
-			if index, ok := (*myMap).isWordInList(word, docId); !ok {
-
-				structure := wordStruct{
-					Doc:      docId,
-					Position: []int{},
-				}
-
-				structure.Position = append(structure.Position, i)
-				(*myMap)[word] = append((*myMap)[word], structure)
-			} else if index != -1 {
-				(*myMap)[word][index].Position = append((*myMap)[word][index].Position, i)
-			}
-			mutex.Unlock()
-		}
 		wg.Done()
 	}
 }
 
-func GetDocStrSlice(slice []wordStruct) []string {
+func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
+	wordList := prepareText(inputText)
+	for i, word := range wordList {
+		if index, ok := thisMap.isWordInList(word, fileName); !ok {
+			structure := WordInfo{
+				FileName:  fileName,
+				Positions: []int{},
+			}
+			structure.Positions = append(structure.Positions, i)
+			(*thisMap)[word] = append((*thisMap)[word], structure)
+		} else if index != -1 {
+			(*thisMap)[word][index].Positions = append((*thisMap)[word][index].Positions, i)
+		}
+
+	}
+}
+
+func GetDocStrSlice(slice []WordInfo) []string {
 	outSlice := make([]string, 0)
 	for _, doc := range slice {
-		outSlice = append(outSlice, doc.Doc)
+		outSlice = append(outSlice, doc.FileName)
 	}
 	return outSlice
 }
 
-func Searcher(invertMap *InvMap, arguments []string) []MatchList {
-
+func (thisMap InvMap) Searcher(query []string) []MatchList {
 	var matchesSlice []MatchList
-	matchesMap := make(map[string]int, 0)
-
-	arguments = cleanText(arguments)
-	for _, word := range arguments {
-		if docNames, ok := (*invertMap)[word]; ok {
-			for _, doc := range docNames {
-				matchesMap[doc.Doc] += len(doc.Position)
+	var matchesMap = make(map[string]int, 0)
+	query = cleanText(query)
+	for _, word := range query {
+		if fileList, ok := thisMap[word]; ok {
+			for _, fileName := range fileList {
+				matchesMap[fileName.FileName] += len(fileName.Positions)
 			}
 		}
 	}
@@ -107,11 +97,23 @@ func Searcher(invertMap *InvMap, arguments []string) []MatchList {
 	return matchesSlice
 }
 
-func cleanText(inputWords []string) []string {
+func prepareText(in string) []string {
+	tokens := cleanText(regCompiled.Split(in, -1))
+	return tokens
+}
 
+func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
+	for i, ind := range thisMap[word] {
+		if ind.FileName == docId {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func cleanText(inputWords []string) []string {
 	cleanWords := make([]string, 0)
 	for _, word := range inputWords {
-
 		if stopWORDS[word] || utf8.RuneCountInString(word) < minWordLength {
 			continue
 		}
