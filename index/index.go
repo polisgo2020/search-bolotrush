@@ -27,7 +27,8 @@ type MatchList struct {
 type StraightIndex struct {
 	FileName string
 	Text     string
-	Mutex    sync.Mutex
+	Mutex    *sync.Mutex
+	Wg       *sync.WaitGroup
 }
 
 func NewInvMap() InvMap {
@@ -35,15 +36,13 @@ func NewInvMap() InvMap {
 	return index
 }
 
-func (thisMap *InvMap) AsyncInvertIndex(docChan chan StraightIndex, mutex *sync.Mutex, wg *sync.WaitGroup) {
+func (thisMap *InvMap) AsyncInvertIndex(docChan chan StraightIndex) {
 	for input := range docChan {
-		wg.Add(1)
-
-		mutex.Lock()
+		input.Wg.Add(1)
+		input.Mutex.Lock()
 		thisMap.InvertIndex(input.Text, input.FileName)
-		mutex.Unlock()
-
-		wg.Done()
+		input.Mutex.Unlock()
+		input.Wg.Done()
 	}
 }
 

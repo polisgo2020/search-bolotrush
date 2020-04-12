@@ -48,33 +48,33 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 	files, err := ioutil.ReadDir(path)
 	checkError(err)
 
-	textChannel := make(chan index.StraightIndex)
+	channel := make(chan index.StraightIndex)
 	wg := &sync.WaitGroup{}
 	mutex := &sync.Mutex{}
-
-	go InvertedIndexMap.AsyncInvertIndex(textChannel, mutex, wg)
+	go InvertedIndexMap.AsyncInvertIndex(channel)
 
 	for _, file := range files {
 		wg.Add(1)
-		go asyncRead(file, textChannel, path, wg)
+		go func(file os.FileInfo) {
+			defer wg.Done()
+			text, err := ioutil.ReadFile(path + "/" + file.Name())
+			fmt.Println(file.Name())
+			checkError(err)
+
+			info := index.StraightIndex{
+				FileName: strings.TrimRight(file.Name(), ".txt"),
+				Text:     string(text),
+				Wg:       wg,
+				Mutex:    mutex,
+			}
+			channel <- info
+		}(file)
 	}
 	wg.Wait()
-	close(textChannel)
-}
-
-func asyncRead(file os.FileInfo, ch chan<- index.StraightIndex, path string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	text, err := ioutil.ReadFile(path + "/" + file.Name())
-	checkError(err)
-	chStruct := index.StraightIndex{
-		FileName: strings.TrimRight(file.Name(), ".txt"),
-		Text:     string(text),
-	}
-	ch <- chStruct
+	close(channel)
 }
 
 func writeMapToFile(inputMap index.InvMap) {
-
 	file, err := os.Create("out.txt")
 	checkError(err)
 
