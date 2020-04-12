@@ -58,7 +58,6 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 		go func(file os.FileInfo) {
 			defer wg.Done()
 			text, err := ioutil.ReadFile(path + "/" + file.Name())
-			fmt.Println(file.Name())
 			checkError(err)
 
 			info := index.StraightIndex{
