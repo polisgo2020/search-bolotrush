@@ -1,6 +1,7 @@
 package index
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -10,7 +11,7 @@ import (
 
 const minWordLength = 2
 
-var regCompiled = regexp.MustCompile(`[\W]+`)
+var regCompiled = regexp.MustCompile(`[^a-zA-Z_]+`)
 
 type WordInfo struct {
 	FileName  string
@@ -19,15 +20,11 @@ type WordInfo struct {
 
 type InvMap map[string][]WordInfo
 
-type MatchList struct {
-	Matches  int
-	FileName string
-}
-
 type StraightIndex struct {
 	FileName string
 	Text     string
-	Mutex    sync.Mutex
+	Mutex    *sync.Mutex
+	Wg       *sync.WaitGroup
 }
 
 func NewInvMap() InvMap {
@@ -35,15 +32,13 @@ func NewInvMap() InvMap {
 	return index
 }
 
-func (thisMap *InvMap) AsyncInvertIndex(docChan chan StraightIndex, mutex *sync.Mutex, wg *sync.WaitGroup) {
+func (thisMap *InvMap) AsyncInvertIndex(docChan chan StraightIndex) {
 	for input := range docChan {
-		wg.Add(1)
-
-		mutex.Lock()
+		input.Wg.Add(1)
+		input.Mutex.Lock()
 		thisMap.InvertIndex(input.Text, input.FileName)
-		mutex.Unlock()
-
-		wg.Done()
+		input.Mutex.Unlock()
+		input.Wg.Done()
 	}
 }
 
@@ -72,6 +67,11 @@ func GetDocStrSlice(slice []WordInfo) []string {
 	return outSlice
 }
 
+type MatchList struct {
+	Matches  int
+	FileName string
+}
+
 func (thisMap InvMap) Searcher(query []string) []MatchList {
 	var matchesSlice []MatchList
 	var matchesMap = make(map[string]int, 0)
@@ -97,9 +97,18 @@ func (thisMap InvMap) Searcher(query []string) []MatchList {
 	return matchesSlice
 }
 
-func prepareText(in string) []string {
-	tokens := cleanText(regCompiled.Split(in, -1))
-	return tokens
+func ShowSearchResults(matchListOut []MatchList) {
+	fmt.Println("Search result:")
+	if len(matchListOut) > 0 {
+		for i, match := range matchListOut {
+			if i > 4 {
+				break
+			}
+			fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
+		}
+	} else {
+		fmt.Println("There's no results :(")
+	}
 }
 
 func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
@@ -109,6 +118,11 @@ func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
 		}
 	}
 	return -1, false
+}
+
+func prepareText(in string) []string {
+	tokens := cleanText(regCompiled.Split(in, -1))
+	return tokens
 }
 
 func cleanText(inputWords []string) []string {
