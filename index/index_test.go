@@ -38,6 +38,15 @@ func TestInvMap_InvertIndex(t *testing.T) {
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}
+	expected["love"] = []WordInfo{{
+		FileName:  filename,
+		Positions: []int{0, 2, 3},
+	}}
+	actual = NewInvMap()
+	actual.InvertIndex("love cats love love", filename)
+	if !reflect.DeepEqual(actual, expected) {
+		t.Errorf("%v is not equal to expected %v", actual, expected)
+	}
 }
 
 func TestGetDocStrSlice(t *testing.T) {

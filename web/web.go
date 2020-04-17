@@ -2,57 +2,94 @@ package web
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/polisgo2020/search-bolotrush/index"
+	zlog "github.com/rs/zerolog/log"
 )
 
-func webSearch(w http.ResponseWriter, r *http.Request, index index.InvMap) {
-	query := r.URL.Query().Get("query")
-	if query == "" {
-		_, err := fmt.Fprintln(w, "Search phrase is not found")
-		if err != nil {
-			return
-		}
-		return
-	}
-
-	_, err := fmt.Fprintln(w, "Search query: ", query)
-	if err != nil {
-		return
-	}
-	result := index.Searcher(strings.Fields(query))
-	if len(result) > 0 {
-		for i, match := range result {
-			if i > 4 {
-				break
-			}
-			_, err := fmt.Fprintf(w, "%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
-			if err != nil {
-				return
-			}
-		}
-	} else {
-		fmt.Println("There's no results :(")
-	}
-}
-
 func RunServer(addr string, index index.InvMap) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
-		webSearch(w, r, index)
-	})
+	startHTML, err := template.ParseFiles("web/start.html")
+	if err != nil {
+		zlog.Fatal().Err(err).Msg("can not read index template")
+	}
+	searchHTML, err := template.ParseFiles("web/search.html")
+	if err != nil {
+		zlog.Fatal().Err(err).Msg("can not read index template")
+	}
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		startHandler(w, startHTML)
+	})
+	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+		searchHandler(w, r, index, searchHTML)
+	})
+	logServer := logger(mux)
 	server := http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler:      logServer,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 
-	fmt.Println("starting server at", addr)
-	log.Fatal(server.ListenAndServe())
+	zlog.Debug().Msgf("starting server at", addr)
+	err = server.ListenAndServe()
+	if err != nil {
+		zlog.Fatal().Err(err)
+	}
+
+}
+
+func searchHandler(w http.ResponseWriter, r *http.Request, inputIndex index.InvMap, template *template.Template) {
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		_, err := fmt.Fprintln(w, "Wrong query")
+		if err != nil {
+			zlog.Fatal().Err(err)
+		}
+		return
+	}
+	result := inputIndex.Searcher(strings.Fields(query))
+	if len(result) == 0 {
+		_, err := fmt.Fprintln(w, "There's no results :(")
+		if err != nil {
+			zlog.Fatal().Err(err)
+		}
+		return
+	}
+	err := template.Execute(w, struct {
+		Result []index.MatchList
+		Query  string
+	}{
+		Result: result,
+		Query:  query,
+	})
+	if err != nil {
+		zlog.Fatal().Err(err).Msg("can not render template")
+	}
+}
+
+func startHandler(w http.ResponseWriter, template *template.Template) {
+	err := template.Execute(w, nil)
+	if err != nil {
+		zlog.Fatal().Err(err).Msg("can not render template")
+	}
+}
+
+func logger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+
+		zlog.Debug().
+			Str("method", r.Method).
+			Str("remote", r.RemoteAddr).
+			Str("path", r.URL.Path).
+			Int("duration", int(time.Since(start))).
+			Msgf("called url %s", r.URL.Path)
+	})
 }
