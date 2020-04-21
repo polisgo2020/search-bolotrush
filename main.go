@@ -1,33 +1,33 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"github.com/polisgo2020/search-bolotrush/index"
 	"io/ioutil"
+	"log"
 	"os"
-	"regexp"
 	"strings"
+	"sync"
+
+	"github.com/polisgo2020/search-bolotrush/index"
 )
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Println("Not enough program arguments!")
-		return
+		log.Fatal(errors.New("not enough program arguments"))
 	}
-	fileToText(os.Args[1])
-
+	InvertedIndexMap := index.NewInvMap()
 	switch os.Args[2] {
 	case "index":
-
-		writeMapToFile(index.InvertedIndexMap)
-
+		textBuilder(os.Args[1], &InvertedIndexMap)
+		writeMapToFile(InvertedIndexMap)
 	case "search":
-
 		if len(os.Args) < 4 {
-			fmt.Println("There's nothing to search")
+			log.Fatal(errors.New("there's nothing to search"))
 			return
 		}
-		matchListOut := index.Searcher(index.InvertedIndexMap, os.Args[3:])
+		textBuilder(os.Args[1], &InvertedIndexMap)
+		matchListOut := InvertedIndexMap.Searcher(os.Args[3:])
 		fmt.Println("Search result:")
 		if len(matchListOut) > 0 {
 			for i, match := range matchListOut {
@@ -40,31 +40,40 @@ func main() {
 			fmt.Println("There's no results :(")
 		}
 	default:
-
-		fmt.Println("Command is unknown. Try again.")
-		return
+		log.Fatal(errors.New("command or address is unknown"))
 	}
 }
 
-func fileToText(path string) {
-
+func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 	files, err := ioutil.ReadDir(path)
 	checkError(err)
 
-	regCompiled := regexp.MustCompile(`[\W]+`)
+	channel := make(chan index.StraightIndex)
+	wg := &sync.WaitGroup{}
+	mutex := &sync.Mutex{}
+	go InvertedIndexMap.AsyncInvertIndex(channel)
+
 	for _, file := range files {
+		wg.Add(1)
+		go func(file os.FileInfo) {
+			defer wg.Done()
+			text, err := ioutil.ReadFile(path + "/" + file.Name())
+			checkError(err)
 
-		text, err := ioutil.ReadFile(path + "/" + file.Name())
-		checkError(err)
-
-		regularText := regCompiled.Split(string(text), -1)
-
-		index.InvertIndex(regularText, strings.TrimRight(file.Name(), ".txt"))
+			info := index.StraightIndex{
+				FileName: strings.TrimRight(file.Name(), ".txt"),
+				Text:     string(text),
+				Wg:       wg,
+				Mutex:    mutex,
+			}
+			channel <- info
+		}(file)
 	}
+	wg.Wait()
+	close(channel)
 }
 
 func writeMapToFile(inputMap index.InvMap) {
-
 	file, err := os.Create("out.txt")
 	checkError(err)
 
