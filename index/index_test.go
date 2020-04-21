@@ -68,7 +68,7 @@ func TestInvMap_Searcher(t *testing.T) {
 		FileName: "second",
 	}}
 	i := getTestInvMap()
-	actual := i.Searcher(in)
+	actual := i.Search(in)
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}

@@ -1,7 +1,6 @@
 package index
 
 import (
-	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -32,26 +31,16 @@ func NewInvMap() InvMap {
 	return index
 }
 
-func (thisMap *InvMap) AsyncInvertIndex(docChan chan StraightIndex) {
-	for input := range docChan {
-		input.Wg.Add(1)
-		input.Mutex.Lock()
-		thisMap.InvertIndex(input.Text, input.FileName)
-		input.Mutex.Unlock()
-		input.Wg.Done()
-	}
-}
-
 func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
 	wordList := prepareText(inputText)
 	for i, word := range wordList {
 		if index, ok := thisMap.isWordInList(word, fileName); !ok {
-			structure := WordInfo{
+			info := WordInfo{
 				FileName:  fileName,
 				Positions: []int{},
 			}
-			structure.Positions = append(structure.Positions, i)
-			(*thisMap)[word] = append((*thisMap)[word], structure)
+			info.Positions = append(info.Positions, i)
+			(*thisMap)[word] = append((*thisMap)[word], info)
 		} else if index != -1 {
 			(*thisMap)[word][index].Positions = append((*thisMap)[word][index].Positions, i)
 		}
@@ -72,7 +61,7 @@ type MatchList struct {
 	FileName string
 }
 
-func (thisMap InvMap) Searcher(query []string) []MatchList {
+func (thisMap InvMap) Search(query []string) []MatchList {
 	var matchesSlice []MatchList
 	var matchesMap = make(map[string]int, 0)
 	query = cleanText(query)
@@ -95,20 +84,6 @@ func (thisMap InvMap) Searcher(query []string) []MatchList {
 		})
 	}
 	return matchesSlice
-}
-
-func ShowSearchResults(matchListOut []MatchList) {
-	fmt.Println("Search result:")
-	if len(matchListOut) > 0 {
-		for i, match := range matchListOut {
-			if i > 4 {
-				break
-			}
-			fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
-		}
-	} else {
-		fmt.Println("There's no results :(")
-	}
 }
 
 func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {

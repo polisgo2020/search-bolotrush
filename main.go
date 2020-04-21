@@ -2,91 +2,160 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"os"
 	"strings"
-	"sync"
 
-	"github.com/polisgo2020/search-bolotrush/index"
 	"github.com/polisgo2020/search-bolotrush/web"
+
+	"github.com/polisgo2020/search-bolotrush/files"
+
+	"github.com/urfave/cli/v2"
+
+	"github.com/rs/zerolog"
+
+	zl "github.com/rs/zerolog/log"
+
+	"github.com/polisgo2020/search-bolotrush/config"
 )
 
+var cfg config.Config
+
 func main() {
-	fileFlag := flag.Bool("f", false, "save index to file")
-	searchFlag := flag.String("s", "", "search query")
-	webFlag := flag.Bool("web", false, "create web server")
-	flag.Parse()
-	if flag.NArg() != 1 {
-		log.Fatal(errors.New("there's wrong number of input arguments"))
+	var err error
+	cfg, err = config.Load()
+	if err != nil {
+		zl.Fatal().Err(err)
 	}
 
-	InvertedIndexMap := index.NewInvMap()
-	if err := textBuilder(flag.Args()[0], &InvertedIndexMap); err != nil {
-		log.Fatal(errors.New("path to files is incorrect"))
+	loglevel, err := zerolog.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		zl.Fatal().Err(err)
 	}
-	if *fileFlag {
-		writeMapToFile(InvertedIndexMap)
+
+	zerolog.SetGlobalLevel(loglevel)
+
+	app := &cli.App{
+		Name:  "Searcher",
+		Usage: "The app searches docs using inverted index and find the best match",
 	}
-	if *searchFlag != "" {
-		matchListOut := InvertedIndexMap.Searcher(strings.Fields(*searchFlag))
-		index.ShowSearchResults(matchListOut)
+	pathFlag := &cli.StringFlag{
+		Name:     "path",
+		Aliases:  []string{"p"},
+		Usage:    "Path to files directory",
+		Required: true,
 	}
-	if *webFlag {
-		web.RunServer(":8080", InvertedIndexMap)
+	app.Commands = []*cli.Command{
+		{
+			Name:    "file",
+			Aliases: []string{"f"},
+			Usage:   "Saves index to file",
+			Flags:   []cli.Flag{pathFlag},
+			Action:  indexFile,
+		}, {
+			Name:    "search",
+			Aliases: []string{"s"},
+			Usage:   "Reads query and search files",
+			Flags:   []cli.Flag{pathFlag},
+			Subcommands: []*cli.Command{
+				{
+					Name:    "console",
+					Aliases: []string{"c"},
+					Usage:   "Searches index in console",
+					Flags: []cli.Flag{
+						&cli.StringFlag{
+							Name:     "query",
+							Aliases:  []string{"q"},
+							Usage:    "Searches query in console",
+							Required: true,
+						},
+					},
+					Action: searchConsole,
+				}, {
+					Name:    "web",
+					Aliases: []string{"w"},
+					Usage:   "Creates web server for search using http",
+					Flags: []cli.Flag{
+						&cli.BoolFlag{
+							Name:     "db",
+							Usage:    "Uses PostgreSQL for data",
+							Required: true,
+						},
+						&cli.StringFlag{
+							Name:     "port",
+							Usage:    "Web server's port",
+							Required: true,
+						},
+					},
+					Action: searchWeb,
+				},
+			},
+		},
+	}
+
+	err = app.Run(os.Args)
+	if err != nil {
+		zl.Fatal().Err(err)
 	}
 }
 
-func textBuilder(path string, InvertedIndexMap *index.InvMap) error {
-	files, err := ioutil.ReadDir(path)
+func indexFile(c *cli.Context) error {
+	path := c.String("path")
+	if len(path) == 0 {
+		return errors.New("path to files is not found")
+	}
+
+	indexMap, err := files.IndexBuilder(path)
 	if err != nil {
 		return err
 	}
-	channel := make(chan index.StraightIndex)
-	wg := &sync.WaitGroup{}
-	mutex := &sync.Mutex{}
-	go InvertedIndexMap.AsyncInvertIndex(channel)
 
-	for _, file := range files {
-		wg.Add(1)
-		go func(file os.FileInfo) {
-			defer wg.Done()
-			text, err := ioutil.ReadFile(path + "/" + file.Name())
-			checkError(err)
-
-			info := index.StraightIndex{
-				FileName: strings.TrimRight(file.Name(), ".txt"),
-				Text:     string(text),
-				Wg:       wg,
-				Mutex:    mutex,
-			}
-			channel <- info
-		}(file)
+	err = files.WriteMapToFile(indexMap)
+	if err != nil {
+		return err
 	}
-	wg.Wait()
-	close(channel)
 	return nil
 }
 
-func writeMapToFile(inputMap index.InvMap) {
-	file, err := os.Create("out.txt")
-	checkError(err)
-
-	for key, value := range inputMap {
-		strSlice := index.GetDocStrSlice(value)
-		_, err := file.WriteString(key + ": {" + strings.Join(strSlice, ",") + "}\n")
-		checkError(err)
+func searchConsole(c *cli.Context) error {
+	path := c.String("path")
+	if len(path) == 0 {
+		return errors.New("path to files is not found")
 	}
-	err = file.Close()
-	checkError(err)
+
+	query := c.String("query")
+	if len(path) == 0 {
+		return errors.New("query phrase is not found")
+	}
+
+	indexMap, err := files.IndexBuilder(path)
+	if err != nil {
+		return err
+	}
+
+	matches := indexMap.Search(strings.Fields(query))
+	if len(matches) > 0 {
+		for i, match := range matches {
+			fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
+		}
+	} else {
+		fmt.Println("There's no results :(")
+	}
+	return nil
 }
 
-func checkError(err error) {
-
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+func searchWeb(c *cli.Context) error {
+	path := c.String("path")
+	if len(path) == 0 {
+		return errors.New("path to files is not found")
 	}
+
+	indexMap, err := files.IndexBuilder(path)
+	if err != nil {
+		return err
+	}
+
+	port := c.String("port")
+	web.RunServer(indexMap, port)
+	return nil
 }
