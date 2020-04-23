@@ -17,37 +17,53 @@ import (
 func main() {
 	fileFlag := flag.Bool("f", false, "save index to file")
 	searchFlag := flag.String("s", "", "search query")
-	webFlag := flag.Bool("web", false, "create web server")
+	webFlag := flag.String("web", "", "input port")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		log.Fatal(errors.New("there's wrong number of input arguments"))
 	}
 
 	InvertedIndexMap := index.NewInvMap()
-	if err := textBuilder(flag.Args()[0], &InvertedIndexMap); err != nil {
-		log.Fatal(errors.New("path to files is incorrect"))
-	}
+	textBuilder(flag.Args()[0], &InvertedIndexMap)
 	if *fileFlag {
 		writeMapToFile(InvertedIndexMap)
 	}
 	if *searchFlag != "" {
 		matchListOut := InvertedIndexMap.Searcher(strings.Fields(*searchFlag))
-		index.ShowSearchResults(matchListOut)
+		fmt.Println("Search result:")
+		if len(matchListOut) > 0 {
+			for i, match := range matchListOut {
+				fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
+			}
+		} else {
+			fmt.Println("There's no results :(")
+		}
 	}
-	if *webFlag {
-		web.RunServer(":8080", InvertedIndexMap)
+	if *webFlag != "" {
+		if err := web.RunServer(":"+*webFlag, InvertedIndexMap); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
-func textBuilder(path string, InvertedIndexMap *index.InvMap) error {
+func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 	channel := make(chan index.StraightIndex)
 	wg := &sync.WaitGroup{}
 	mutex := &sync.Mutex{}
-	go InvertedIndexMap.AsyncInvertIndex(channel)
+
+	go func(thisMap *index.InvMap, docChan chan index.StraightIndex) {
+		for input := range docChan {
+			input.Wg.Add(1)
+			input.Mutex.Lock()
+			thisMap.InvertIndex(input.Text, input.FileName)
+			input.Mutex.Unlock()
+			input.Wg.Done()
+		}
+	}(InvertedIndexMap, channel)
 
 	for _, file := range files {
 		wg.Add(1)
@@ -67,7 +83,6 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) error {
 	}
 	wg.Wait()
 	close(channel)
-	return nil
 }
 
 func writeMapToFile(inputMap index.InvMap) {
@@ -86,7 +101,6 @@ func writeMapToFile(inputMap index.InvMap) {
 func checkError(err error) {
 
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		log.Fatal(err.Error())
 	}
 }

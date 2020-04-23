@@ -27,32 +27,30 @@ func webSearch(w http.ResponseWriter, r *http.Request, index index.InvMap) {
 	result := index.Searcher(strings.Fields(query))
 	if len(result) > 0 {
 		for i, match := range result {
-			if i > 4 {
-				break
-			}
 			_, err := fmt.Fprintf(w, "%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
 			if err != nil {
-				return
+				log.Fatal(err)
 			}
 		}
 	} else {
-		fmt.Println("There's no results :(")
+		_, err := fmt.Fprintln(w, "There's no results :(")
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
-func RunServer(addr string, index index.InvMap) {
+func RunServer(addr string, index index.InvMap) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
 		webSearch(w, r, index)
 	})
-
 	server := http.Server{
 		Addr:         addr,
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-
-	fmt.Println("starting server at", addr)
-	log.Fatal(server.ListenAndServe())
+	log.Println("starting server at", addr)
+	return server.ListenAndServe()
 }
