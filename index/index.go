@@ -31,6 +31,16 @@ func NewInvMap() InvMap {
 	return index
 }
 
+func (thisMap *InvMap) AsyncInvertIndex(docChan chan StraightIndex) {
+	for input := range docChan {
+		input.Wg.Add(1)
+		input.Mutex.Lock()
+		thisMap.InvertIndex(input.Text, input.FileName)
+		input.Mutex.Unlock()
+		input.Wg.Done()
+	}
+}
+
 func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
 	wordList := prepareText(inputText)
 	for i, word := range wordList {
