@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
+	_ "strings"
 
 	"github.com/polisgo2020/search-bolotrush/web"
 
@@ -133,7 +133,7 @@ func searchConsole(c *cli.Context) error {
 		return err
 	}
 
-	matches := indexMap.Search(strings.Fields(query))
+	matches := indexMap.Search(query)
 	if len(matches) > 0 {
 		for i, match := range matches {
 			fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)

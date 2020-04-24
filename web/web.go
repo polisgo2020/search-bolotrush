@@ -3,7 +3,6 @@ package web
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"text/template"
 	"time"
 
@@ -53,7 +52,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request, inputIndex index.InvM
 		}
 		return
 	}
-	result := inputIndex.Search(strings.Fields(query))
+	result := inputIndex.Search(query)
 	if len(result) == 0 {
 		_, err := fmt.Fprintln(w, "There's no results :(")
 		if err != nil {

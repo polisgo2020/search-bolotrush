@@ -32,15 +32,15 @@ func NewInvMap() InvMap {
 }
 
 func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
-	wordList := prepareText(inputText)
+	wordList := PrepareText(inputText)
 	for i, word := range wordList {
 		if index, ok := thisMap.isWordInList(word, fileName); !ok {
-			info := WordInfo{
+			structure := WordInfo{
 				FileName:  fileName,
 				Positions: []int{},
 			}
-			info.Positions = append(info.Positions, i)
-			(*thisMap)[word] = append((*thisMap)[word], info)
+			structure.Positions = append(structure.Positions, i)
+			(*thisMap)[word] = append((*thisMap)[word], structure)
 		} else if index != -1 {
 			(*thisMap)[word][index].Positions = append((*thisMap)[word][index].Positions, i)
 		}
@@ -61,10 +61,10 @@ type MatchList struct {
 	FileName string
 }
 
-func (thisMap InvMap) Search(query []string) []MatchList {
+func (thisMap InvMap) Search(rawQuery string) []MatchList {
 	var matchesSlice []MatchList
 	var matchesMap = make(map[string]int, 0)
-	query = cleanText(query)
+	query := PrepareText(rawQuery)
 	for _, word := range query {
 		if fileList, ok := thisMap[word]; ok {
 			for _, fileName := range fileList {
@@ -95,7 +95,7 @@ func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
 	return -1, false
 }
 
-func prepareText(in string) []string {
+func PrepareText(in string) []string {
 	tokens := cleanText(regCompiled.Split(in, -1))
 	return tokens
 }
