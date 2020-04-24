@@ -17,7 +17,7 @@ import (
 func main() {
 	fileFlag := flag.Bool("f", false, "save index to file")
 	searchFlag := flag.String("s", "", "search query")
-	webFlag := flag.Bool("web", false, "create web server")
+	webFlag := flag.String("web", "", "input port")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		log.Fatal(errors.New("there's wrong number of input arguments"))
@@ -34,8 +34,10 @@ func main() {
 		matchListOut := InvertedIndexMap.Searcher(strings.Fields(*searchFlag))
 		index.ShowSearchResults(matchListOut)
 	}
-	if *webFlag {
-		web.RunServer(":8080", InvertedIndexMap)
+	if *webFlag != "" {
+		if err := web.RunServer(":"+*webFlag, InvertedIndexMap); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 

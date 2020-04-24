@@ -11,7 +11,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-func RunServer(addr string, index index.InvMap) {
+func RunServer(addr string, index index.InvMap) error {
 	startHTML, err := template.ParseFiles("web/start.html")
 	if err != nil {
 		zlog.Fatal().Err(err).Msg("can not read index template")
@@ -36,12 +36,8 @@ func RunServer(addr string, index index.InvMap) {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	zlog.Debug().Msgf("starting server at", addr)
-	err = server.ListenAndServe()
-	if err != nil {
-		zlog.Fatal().Err(err)
-	}
-
+	zlog.Debug().Msgf("starting server at %s", addr)
+	return server.ListenAndServe()
 }
 
 func searchHandler(w http.ResponseWriter, r *http.Request, inputIndex index.InvMap, template *template.Template) {
