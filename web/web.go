@@ -35,7 +35,7 @@ func RunServer(addr string, index index.InvMap) error {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-
+  
 	zlog.Debug().Msgf("starting server at %s", addr)
 	return server.ListenAndServe()
 }

@@ -24,15 +24,20 @@ func main() {
 	}
 
 	InvertedIndexMap := index.NewInvMap()
-	if err := textBuilder(flag.Args()[0], &InvertedIndexMap); err != nil {
-		log.Fatal(errors.New("path to files is incorrect"))
-	}
+	textBuilder(flag.Args()[0], &InvertedIndexMap)
 	if *fileFlag {
 		writeMapToFile(InvertedIndexMap)
 	}
 	if *searchFlag != "" {
 		matchListOut := InvertedIndexMap.Searcher(strings.Fields(*searchFlag))
-		index.ShowSearchResults(matchListOut)
+		fmt.Println("Search result:")
+		if len(matchListOut) > 0 {
+			for i, match := range matchListOut {
+				fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
+			}
+		} else {
+			fmt.Println("There's no results :(")
+		}
 	}
 	if *webFlag != "" {
 		if err := web.RunServer(":"+*webFlag, InvertedIndexMap); err != nil {
@@ -41,10 +46,10 @@ func main() {
 	}
 }
 
-func textBuilder(path string, InvertedIndexMap *index.InvMap) error {
+func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 	channel := make(chan index.StraightIndex)
 	wg := &sync.WaitGroup{}
@@ -69,7 +74,6 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) error {
 	}
 	wg.Wait()
 	close(channel)
-	return nil
 }
 
 func writeMapToFile(inputMap index.InvMap) {
@@ -88,7 +92,6 @@ func writeMapToFile(inputMap index.InvMap) {
 func checkError(err error) {
 
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		log.Fatal(err.Error())
 	}
 }

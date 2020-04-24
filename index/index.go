@@ -1,7 +1,6 @@
 package index
 
 import (
-	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -55,7 +54,6 @@ func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
 		} else if index != -1 {
 			(*thisMap)[word][index].Positions = append((*thisMap)[word][index].Positions, i)
 		}
-
 	}
 }
 
@@ -95,20 +93,6 @@ func (thisMap InvMap) Searcher(query []string) []MatchList {
 		})
 	}
 	return matchesSlice
-}
-
-func ShowSearchResults(matchListOut []MatchList) {
-	fmt.Println("Search result:")
-	if len(matchListOut) > 0 {
-		for i, match := range matchListOut {
-			if i > 4 {
-				break
-			}
-			fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
-		}
-	} else {
-		fmt.Println("There's no results :(")
-	}
 }
 
 func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
