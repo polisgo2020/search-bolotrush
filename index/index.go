@@ -10,7 +10,7 @@ import (
 
 const minWordLength = 2
 
-var regCompiled = regexp.MustCompile(`[\W]+`)
+var regCompiled = regexp.MustCompile(`[^a-zA-Z_]+`)
 
 type WordInfo struct {
 	FileName  string
@@ -18,11 +18,6 @@ type WordInfo struct {
 }
 
 type InvMap map[string][]WordInfo
-
-type MatchList struct {
-	Matches  int
-	FileName string
-}
 
 type StraightIndex struct {
 	FileName string
@@ -59,7 +54,6 @@ func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
 		} else if index != -1 {
 			(*thisMap)[word][index].Positions = append((*thisMap)[word][index].Positions, i)
 		}
-
 	}
 }
 
@@ -69,6 +63,11 @@ func GetDocStrSlice(slice []WordInfo) []string {
 		outSlice = append(outSlice, doc.FileName)
 	}
 	return outSlice
+}
+
+type MatchList struct {
+	Matches  int
+	FileName string
 }
 
 func (thisMap InvMap) Searcher(query []string) []MatchList {
@@ -96,11 +95,6 @@ func (thisMap InvMap) Searcher(query []string) []MatchList {
 	return matchesSlice
 }
 
-func prepareText(in string) []string {
-	tokens := cleanText(regCompiled.Split(in, -1))
-	return tokens
-}
-
 func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
 	for i, ind := range thisMap[word] {
 		if ind.FileName == docId {
@@ -108,6 +102,11 @@ func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
 		}
 	}
 	return -1, false
+}
+
+func prepareText(in string) []string {
+	tokens := cleanText(regCompiled.Split(in, -1))
+	return tokens
 }
 
 func cleanText(inputWords []string) []string {

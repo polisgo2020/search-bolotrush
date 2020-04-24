@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -10,44 +11,46 @@ import (
 	"sync"
 
 	"github.com/polisgo2020/search-bolotrush/index"
+	"github.com/polisgo2020/search-bolotrush/web"
 )
 
 func main() {
-	if len(os.Args) < 3 {
-		log.Fatal(errors.New("not enough program arguments"))
+	fileFlag := flag.Bool("f", false, "save index to file")
+	searchFlag := flag.String("s", "", "search query")
+	webFlag := flag.String("web", "", "input port")
+	flag.Parse()
+	if flag.NArg() != 1 {
+		log.Fatal(errors.New("there's wrong number of input arguments"))
 	}
+
 	InvertedIndexMap := index.NewInvMap()
-	switch os.Args[2] {
-	case "index":
-		textBuilder(os.Args[1], &InvertedIndexMap)
+	textBuilder(flag.Args()[0], &InvertedIndexMap)
+	if *fileFlag {
 		writeMapToFile(InvertedIndexMap)
-	case "search":
-		if len(os.Args) < 4 {
-			log.Fatal(errors.New("there's nothing to search"))
-			return
-		}
-		textBuilder(os.Args[1], &InvertedIndexMap)
-		matchListOut := InvertedIndexMap.Searcher(os.Args[3:])
+	}
+	if *searchFlag != "" {
+		matchListOut := InvertedIndexMap.Searcher(strings.Fields(*searchFlag))
 		fmt.Println("Search result:")
 		if len(matchListOut) > 0 {
 			for i, match := range matchListOut {
-				if i > 4 {
-					break
-				}
 				fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
 			}
 		} else {
 			fmt.Println("There's no results :(")
 		}
-	default:
-		log.Fatal(errors.New("command or address is unknown"))
+	}
+	if *webFlag != "" {
+		if err := web.RunServer(":"+*webFlag, InvertedIndexMap); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
 func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 	files, err := ioutil.ReadDir(path)
-	checkError(err)
-
+	if err != nil {
+		log.Fatal(err)
+	}
 	channel := make(chan index.StraightIndex)
 	wg := &sync.WaitGroup{}
 	mutex := &sync.Mutex{}
@@ -89,7 +92,6 @@ func writeMapToFile(inputMap index.InvMap) {
 func checkError(err error) {
 
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		log.Fatal(err.Error())
 	}
 }
