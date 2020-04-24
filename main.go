@@ -54,7 +54,6 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 	channel := make(chan index.StraightIndex)
 	wg := &sync.WaitGroup{}
 	mutex := &sync.Mutex{}
-
 	go InvertedIndexMap.AsyncInvertIndex(channel)
 
 	for _, file := range files {
