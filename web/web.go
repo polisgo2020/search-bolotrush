@@ -10,7 +10,7 @@ import (
 	zl "github.com/rs/zerolog/log"
 )
 
-func RunServer(index index.InvMap, addr string) {
+func RunServer(addr string, searcher func(query string) ([]index.MatchList, error)) error {
 	startHTML, err := template.ParseFiles("web/start.html")
 	if err != nil {
 		zl.Fatal().Err(err).Msg("can not read index template")
@@ -19,13 +19,12 @@ func RunServer(index index.InvMap, addr string) {
 	if err != nil {
 		zl.Fatal().Err(err).Msg("can not read index template")
 	}
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		startHandler(w, startHTML)
 	})
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
-		searchHandler(w, r, index, searchHTML)
+		searchHandler(w, r, searchHTML, searcher)
 	})
 	logServer := logger(mux)
 	server := http.Server{
@@ -34,16 +33,13 @@ func RunServer(index index.InvMap, addr string) {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-
-	zl.Debug().Msgf("starting server at", addr)
-	err = server.ListenAndServe()
-	if err != nil {
-		zl.Fatal().Err(err)
-	}
-
+	zl.Info().Msgf("starting server at", addr)
+	return server.ListenAndServe()
 }
 
-func searchHandler(w http.ResponseWriter, r *http.Request, inputIndex index.InvMap, template *template.Template) {
+func searchHandler(w http.ResponseWriter, r *http.Request, template *template.Template,
+	searcher func(query string) ([]index.MatchList, error)) {
+
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		_, err := fmt.Fprintln(w, "Wrong query")
@@ -52,15 +48,17 @@ func searchHandler(w http.ResponseWriter, r *http.Request, inputIndex index.InvM
 		}
 		return
 	}
-	result := inputIndex.Search(query)
+	result, err := searcher(query)
+	if err != nil {
+		zl.Fatal().Err(err)
+	}
 	if len(result) == 0 {
 		_, err := fmt.Fprintln(w, "There's no results :(")
 		if err != nil {
 			zl.Fatal().Err(err)
 		}
-		return
 	}
-	err := template.Execute(w, struct {
+	err = template.Execute(w, struct {
 		Result []index.MatchList
 		Query  string
 	}{
@@ -84,7 +82,7 @@ func logger(next http.Handler) http.Handler {
 		start := time.Now()
 		next.ServeHTTP(w, r)
 
-		zl.Debug().
+		zl.Info().
 			Str("method", r.Method).
 			Str("remote", r.RemoteAddr).
 			Str("path", r.URL.Path).

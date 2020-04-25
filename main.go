@@ -3,8 +3,16 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
+	_ "strconv"
 	_ "strings"
+
+	"github.com/rs/zerolog"
+
+	"github.com/polisgo2020/search-bolotrush/index"
+
+	"github.com/polisgo2020/search-bolotrush/db"
 
 	"github.com/polisgo2020/search-bolotrush/web"
 
@@ -12,7 +20,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/rs/zerolog"
+	_ "github.com/rs/zerolog"
 
 	zl "github.com/rs/zerolog/log"
 
@@ -32,7 +40,6 @@ func main() {
 	if err != nil {
 		zl.Fatal().Err(err)
 	}
-
 	zerolog.SetGlobalLevel(loglevel)
 
 	app := &cli.App{
@@ -77,9 +84,8 @@ func main() {
 					Usage:   "Creates web server for search using http",
 					Flags: []cli.Flag{
 						&cli.BoolFlag{
-							Name:     "db",
-							Usage:    "Uses PostgreSQL for data",
-							Required: true,
+							Name:  "db",
+							Usage: "Uses PostgreSQL for data",
 						},
 						&cli.StringFlag{
 							Name:     "port",
@@ -133,10 +139,13 @@ func searchConsole(c *cli.Context) error {
 		return err
 	}
 
-	matches := indexMap.Search(query)
+	matches, err := indexMap.Search(query)
+	if err != nil {
+		return err
+	}
 	if len(matches) > 0 {
 		for i, match := range matches {
-			fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
+			fmt.Printf("%d) %s: matches - %d\n", i+1, match.Filename, match.Matches)
 		}
 	} else {
 		fmt.Println("There's no results :(")
@@ -147,7 +156,11 @@ func searchConsole(c *cli.Context) error {
 func searchWeb(c *cli.Context) error {
 	path := c.String("path")
 	if len(path) == 0 {
-		return errors.New("path to files is not found")
+		return errors.New("path to files is empty")
+	}
+	port := c.String("port")
+	if len(port) == 0 {
+		return errors.New("port is incorrect")
 	}
 
 	indexMap, err := files.IndexBuilder(path)
@@ -155,7 +168,25 @@ func searchWeb(c *cli.Context) error {
 		return err
 	}
 
-	port := c.String("port")
-	web.RunServer(indexMap, port)
-	return nil
+	var searcher func(query string) ([]index.MatchList, error)
+	if c.Bool("db") {
+		log.Println(cfg.PgSQL)
+		base, err := db.NewDb(cfg.PgSQL)
+		if err != nil {
+			zl.Debug().Err(err).Msg("error on creating db")
+			return err
+		}
+		log.Println("tut")
+		defer base.Close()
+		if err := base.WriteIndex(indexMap); err != nil {
+			zl.Debug().Err(err).Msg("error on db index writing")
+			return err
+		}
+
+		searcher = base.GetMatches
+	} else {
+		searcher = indexMap.Search
+	}
+
+	return web.RunServer(":"+port, searcher)
 }

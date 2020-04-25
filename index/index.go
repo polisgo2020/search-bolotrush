@@ -1,6 +1,7 @@
 package index
 
 import (
+	"errors"
 	"regexp"
 	"sort"
 	"strings"
@@ -13,7 +14,7 @@ const minWordLength = 2
 var regCompiled = regexp.MustCompile(`[^a-zA-Z_]+`)
 
 type WordInfo struct {
-	FileName  string
+	Filename  string
 	Positions []int
 }
 
@@ -36,7 +37,7 @@ func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
 	for i, word := range wordList {
 		if index, ok := thisMap.isWordInList(word, fileName); !ok {
 			structure := WordInfo{
-				FileName:  fileName,
+				Filename:  fileName,
 				Positions: []int{},
 			}
 			structure.Positions = append(structure.Positions, i)
@@ -51,31 +52,34 @@ func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
 func GetDocStrSlice(slice []WordInfo) []string {
 	outSlice := make([]string, 0)
 	for _, doc := range slice {
-		outSlice = append(outSlice, doc.FileName)
+		outSlice = append(outSlice, doc.Filename)
 	}
 	return outSlice
 }
 
 type MatchList struct {
 	Matches  int
-	FileName string
+	Filename string
 }
 
-func (thisMap InvMap) Search(rawQuery string) []MatchList {
+func (thisMap InvMap) Search(rawQuery string) ([]MatchList, error) {
 	var matchesSlice []MatchList
 	var matchesMap = make(map[string]int, 0)
 	query := PrepareText(rawQuery)
+	if len(query) == 0 {
+		return nil, errors.New("wrong query")
+	}
 	for _, word := range query {
 		if fileList, ok := thisMap[word]; ok {
 			for _, fileName := range fileList {
-				matchesMap[fileName.FileName] += len(fileName.Positions)
+				matchesMap[fileName.Filename] += len(fileName.Positions)
 			}
 		}
 	}
 	for name, matches := range matchesMap {
 		matchesSlice = append(matchesSlice, MatchList{
 			Matches:  matches,
-			FileName: name,
+			Filename: name,
 		})
 	}
 	if len(matchesSlice) > 0 {
@@ -83,12 +87,12 @@ func (thisMap InvMap) Search(rawQuery string) []MatchList {
 			return matchesSlice[i].Matches > matchesSlice[j].Matches
 		})
 	}
-	return matchesSlice
+	return matchesSlice, nil
 }
 
 func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
 	for i, ind := range thisMap[word] {
-		if ind.FileName == docId {
+		if ind.Filename == docId {
 			return i, true
 		}
 	}
