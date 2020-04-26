@@ -14,14 +14,14 @@ const minWordLength = 2
 var regCompiled = regexp.MustCompile(`[^a-zA-Z_]+`)
 
 type WordInfo struct {
-	FileName  string
+	Filename  string
 	Positions []int
 }
 
 type InvMap map[string][]WordInfo
 
 type StraightIndex struct {
-	FileName string
+	Filename string
 	Text     string
 	Mutex    *sync.Mutex
 	Wg       *sync.WaitGroup
@@ -36,7 +36,7 @@ func (thisMap *InvMap) AsyncInvertIndex(docChan chan StraightIndex) {
 	for input := range docChan {
 		input.Wg.Add(1)
 		input.Mutex.Lock()
-		thisMap.InvertIndex(input.Text, input.FileName)
+		thisMap.InvertIndex(input.Text, input.Filename)
 		input.Mutex.Unlock()
 		input.Wg.Done()
 	}
@@ -47,7 +47,7 @@ func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
 	for i, word := range wordList {
 		if index, ok := thisMap.isWordInList(word, fileName); !ok {
 			structure := WordInfo{
-				FileName:  fileName,
+				Filename:  fileName,
 				Positions: []int{},
 			}
 			structure.Positions = append(structure.Positions, i)
@@ -62,14 +62,14 @@ func (thisMap *InvMap) InvertIndex(inputText string, fileName string) {
 func GetDocStrSlice(slice []WordInfo) []string {
 	outSlice := make([]string, 0)
 	for _, doc := range slice {
-		outSlice = append(outSlice, doc.FileName)
+		outSlice = append(outSlice, doc.Filename)
 	}
 	return outSlice
 }
 
 type MatchList struct {
 	Matches  int
-	FileName string
+	Filename string
 }
 
 func (thisMap InvMap) Searcher(query []string) []MatchList {
@@ -79,14 +79,14 @@ func (thisMap InvMap) Searcher(query []string) []MatchList {
 	for _, word := range query {
 		if fileList, ok := thisMap[word]; ok {
 			for _, fileName := range fileList {
-				matchesMap[fileName.FileName] += len(fileName.Positions)
+				matchesMap[fileName.Filename] += len(fileName.Positions)
 			}
 		}
 	}
 	for name, matches := range matchesMap {
 		matchesSlice = append(matchesSlice, MatchList{
 			Matches:  matches,
-			FileName: name,
+			Filename: name,
 		})
 	}
 	if len(matchesSlice) > 0 {
@@ -104,7 +104,7 @@ func ShowSearchResults(matchListOut []MatchList) {
 			if i > 4 {
 				break
 			}
-			fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
+			fmt.Printf("%d) %s: matches - %d\n", i+1, match.Filename, match.Matches)
 		}
 	} else {
 		fmt.Println("There's no results :(")
@@ -113,7 +113,7 @@ func ShowSearchResults(matchListOut []MatchList) {
 
 func (thisMap InvMap) isWordInList(word string, docId string) (int, bool) {
 	for i, ind := range thisMap[word] {
-		if ind.FileName == docId {
+		if ind.Filename == docId {
 			return i, true
 		}
 	}

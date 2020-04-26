@@ -8,14 +8,14 @@ import (
 func getTestInvMap() InvMap {
 	newMap := NewInvMap()
 	newMap["love"] = []WordInfo{{
-		FileName:  "first",
+		Filename:  "first",
 		Positions: []int{0},
 	}, {
-		FileName:  "second",
+		Filename:  "second",
 		Positions: []int{0},
 	}}
 	newMap["cats"] = []WordInfo{{
-		FileName:  "first",
+		Filename:  "first",
 		Positions: []int{1},
 	}}
 	return newMap
@@ -26,11 +26,11 @@ func TestInvMap_InvertIndex(t *testing.T) {
 	filename := "filename"
 	expected := NewInvMap()
 	expected["love"] = []WordInfo{{
-		FileName:  filename,
+		Filename:  filename,
 		Positions: []int{0},
 	}}
 	expected["cats"] = []WordInfo{{
-		FileName:  filename,
+		Filename:  filename,
 		Positions: []int{1},
 	}}
 	actual := NewInvMap()
@@ -39,7 +39,7 @@ func TestInvMap_InvertIndex(t *testing.T) {
 		t.Errorf("%v is not equal to expected %v", actual, expected)
 	}
 	expected["love"] = []WordInfo{{
-		FileName:  filename,
+		Filename:  filename,
 		Positions: []int{0, 2, 3},
 	}}
 	actual = NewInvMap()
@@ -50,7 +50,7 @@ func TestInvMap_InvertIndex(t *testing.T) {
 }
 
 func TestGetDocStrSlice(t *testing.T) {
-	in := []WordInfo{{FileName: "first_text"}, {FileName: "second_text"}}
+	in := []WordInfo{{Filename: "first_text"}, {Filename: "second_text"}}
 	expected := []string{"first_text", "second_text"}
 	actual := GetDocStrSlice(in)
 	if !reflect.DeepEqual(actual, expected) {
@@ -62,10 +62,10 @@ func TestInvMap_Searcher(t *testing.T) {
 	in := []string{"love"}
 	expected := []MatchList{{
 		Matches:  1,
-		FileName: "first",
+		Filename: "first",
 	}, {
 		Matches:  1,
-		FileName: "second",
+		Filename: "second",
 	}}
 	i := getTestInvMap()
 	actual := i.Searcher(in)

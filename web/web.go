@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,7 +12,21 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-func RunServer(addr string, index index.InvMap) error {
+type Server struct {
+	server         http.Server
+	index          index.InvMap
+	startTemplate  *template.Template
+	searchTemplate *template.Template
+}
+
+func NewServer(addr string, index index.InvMap) (*Server, error) {
+	if index == nil {
+		return nil, errors.New("incorrect index")
+	}
+
+	if addr == "" {
+		return nil, errors.New("incorrect address")
+	}
 	startHTML, err := template.ParseFiles("web/start.html")
 	if err != nil {
 		zlog.Fatal().Err(err).Msg("can not read index template")
@@ -20,36 +35,38 @@ func RunServer(addr string, index index.InvMap) error {
 	if err != nil {
 		zlog.Fatal().Err(err).Msg("can not read index template")
 	}
-
+	s := &Server{
+		index:          index,
+		startTemplate:  startHTML,
+		searchTemplate: searchHTML,
+	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		startHandler(w, startHTML)
-	})
-	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
-		searchHandler(w, r, index, searchHTML)
-	})
+	mux.HandleFunc("/", s.startHandler)
+
+	mux.HandleFunc("/search", s.searchHandler)
 	logServer := logger(mux)
-	server := http.Server{
+	s.server = http.Server{
 		Addr:         addr,
 		Handler:      logServer,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-
-	zlog.Debug().Msgf("starting server at %s", addr)
-	return server.ListenAndServe()
+	return s, nil
+}
+func (s *Server) Run() error {
+	zlog.Debug().Msgf("starting server at %s", s.server.Addr)
+	return s.server.ListenAndServe()
 }
 
-func searchHandler(w http.ResponseWriter, r *http.Request, inputIndex index.InvMap, template *template.Template) {
+func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		_, err := fmt.Fprintln(w, "Wrong query")
 		if err != nil {
 			zlog.Fatal().Err(err)
 		}
-		return
 	}
-	result := inputIndex.Searcher(strings.Fields(query))
+	result := s.index.Searcher(strings.Fields(query))
 	if len(result) == 0 {
 		_, err := fmt.Fprintln(w, "There's no results :(")
 		if err != nil {
@@ -57,7 +74,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request, inputIndex index.InvM
 		}
 		return
 	}
-	err := template.Execute(w, struct {
+	err := s.searchTemplate.Execute(w, struct {
 		Result []index.MatchList
 		Query  string
 	}{
@@ -69,8 +86,8 @@ func searchHandler(w http.ResponseWriter, r *http.Request, inputIndex index.InvM
 	}
 }
 
-func startHandler(w http.ResponseWriter, template *template.Template) {
-	err := template.Execute(w, nil)
+func (s *Server) startHandler(w http.ResponseWriter, r *http.Request) {
+	err := s.startTemplate.Execute(w, nil)
 	if err != nil {
 		zlog.Fatal().Err(err).Msg("can not render template")
 	}

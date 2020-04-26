@@ -17,7 +17,7 @@ import (
 func main() {
 	fileFlag := flag.Bool("f", false, "save index to file")
 	searchFlag := flag.String("s", "", "search query")
-	webFlag := flag.String("web", "", "input port")
+	webFlag := flag.String("web", "", "input listen interface")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		log.Fatal(errors.New("there's wrong number of input arguments"))
@@ -35,7 +35,11 @@ func main() {
 		index.ShowSearchResults(matchListOut)
 	}
 	if *webFlag != "" {
-		if err := web.RunServer(":"+*webFlag, InvertedIndexMap); err != nil {
+		server, err := web.NewServer(*webFlag, InvertedIndexMap)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := server.Run(); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -59,7 +63,7 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) error {
 			checkError(err)
 
 			info := index.StraightIndex{
-				FileName: strings.TrimRight(file.Name(), ".txt"),
+				Filename: strings.TrimRight(file.Name(), ".txt"),
 				Text:     string(text),
 				Wg:       wg,
 				Mutex:    mutex,
