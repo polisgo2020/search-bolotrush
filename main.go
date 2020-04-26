@@ -5,22 +5,36 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/polisgo2020/search-bolotrush/config"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 
 	"github.com/polisgo2020/search-bolotrush/index"
 	"github.com/polisgo2020/search-bolotrush/web"
 )
 
 func main() {
+
+	cfg, err := config.Load()
+	if err != nil {
+		zlog.Err(err).Msg("can not load configs")
+	}
+	logLvl, err := zerolog.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		zlog.Err(err).Msg("can not parse loglvl")
+	}
+	zerolog.SetGlobalLevel(logLvl)
+
 	fileFlag := flag.Bool("f", false, "save index to file")
 	searchFlag := flag.String("s", "", "search query")
-	webFlag := flag.String("web", "", "input listen interface")
+	webFlag := flag.Bool("web", false, "input listen interface")
 	flag.Parse()
 	if flag.NArg() != 1 {
-		log.Fatal(errors.New("there's wrong number of input arguments"))
+		zlog.Err(errors.New("flag error")).Msg("there's wrong number of input arguments")
 	}
 
 	InvertedIndexMap := index.NewInvMap()
@@ -33,19 +47,20 @@ func main() {
 		fmt.Println("Search result:")
 		if len(matchListOut) > 0 {
 			for i, match := range matchListOut {
-				fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
+				fmt.Printf("%d) %s: matches - %d\n", i+1, match.Filename, match.Matches)
 			}
 		} else {
 			fmt.Println("There's no results :(")
 		}
 	}
-	if *webFlag != "" {
-		server, err := web.NewServer(*webFlag, InvertedIndexMap)
+
+	if *webFlag {
+		server, err := web.NewServer(cfg.Listen, InvertedIndexMap)
 		if err != nil {
-			log.Fatal(err)
+			zlog.Err(err).Msg("can't create server")
 		}
 		if err := server.Run(); err != nil {
-			log.Fatal(err)
+			zlog.Err(err).Msg("can't run server")
 		}
 	}
 }
@@ -53,7 +68,7 @@ func main() {
 func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
-		log.Fatal(err)
+		zlog.Fatal().Err(err)
 	}
 	channel := make(chan index.StraightIndex)
 	wg := &sync.WaitGroup{}
@@ -96,6 +111,6 @@ func writeMapToFile(inputMap index.InvMap) {
 func checkError(err error) {
 
 	if err != nil {
-		log.Fatal(err.Error())
+		zlog.Fatal().Err(err)
 	}
 }
