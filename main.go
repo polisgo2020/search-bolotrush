@@ -87,11 +87,6 @@ func main() {
 							Name:  "db",
 							Usage: "Uses PostgreSQL for data",
 						},
-						&cli.StringFlag{
-							Name:     "port",
-							Usage:    "Web server's port",
-							Required: true,
-						},
 					},
 					Action: searchWeb,
 				},
@@ -113,12 +108,12 @@ func indexFile(c *cli.Context) error {
 
 	indexMap, err := files.IndexBuilder(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("can't create index %w", err)
 	}
 
 	err = files.WriteMapToFile(indexMap)
 	if err != nil {
-		return err
+		return fmt.Errorf("can't create out file %w", err)
 	}
 	return nil
 }
@@ -136,12 +131,12 @@ func searchConsole(c *cli.Context) error {
 
 	indexMap, err := files.IndexBuilder(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("can't create index %w", err)
 	}
 
 	matches, err := indexMap.Search(query)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while searching %w", err)
 	}
 	if len(matches) > 0 {
 		for i, match := range matches {
@@ -158,35 +153,30 @@ func searchWeb(c *cli.Context) error {
 	if len(path) == 0 {
 		return errors.New("path to files is empty")
 	}
-	port := c.String("port")
-	if len(port) == 0 {
-		return errors.New("port is incorrect")
-	}
-
 	indexMap, err := files.IndexBuilder(path)
 	if err != nil {
-		return err
+		zl.Fatal().Err(err).Msg("index build")
+		return fmt.Errorf("can't create index %w", err)
 	}
-
+	log.Println("tut")
 	var searcher func(query string) ([]index.MatchList, error)
 	if c.Bool("db") {
-		log.Println(cfg.PgSQL)
 		base, err := db.NewDb(cfg.PgSQL)
 		if err != nil {
-			zl.Debug().Err(err).Msg("error on creating db")
-			return err
-		}
-		log.Println("tut")
-		defer base.Close()
-		if err := base.WriteIndex(indexMap); err != nil {
-			zl.Debug().Err(err).Msg("error on db index writing")
-			return err
+			return fmt.Errorf("error on creating db %w", err)
 		}
 
+		defer base.Close()
+		if err := base.WriteIndex(indexMap); err != nil {
+			return fmt.Errorf("error on db index writing %w", err)
+		}
 		searcher = base.GetMatches
 	} else {
 		searcher = indexMap.Search
 	}
-
-	return web.RunServer(":"+port, searcher)
+	server, err := web.NewServer(cfg.Listen, searcher)
+	if err != nil {
+		return fmt.Errorf("can't create server %w", err)
+	}
+	return server.Run()
 }

@@ -46,16 +46,16 @@ func NewDb(config string) (*Base, error) {
 func (b *Base) Close() {
 	err := b.pg.Close()
 	if err != nil {
-		zl.Err(err)
+		zl.Err(err).Msg("can't close db connection")
 	}
 }
 
 func (b *Base) WriteIndex(index index.InvMap) error {
 	if err := b.clearTables(); err != nil {
-		return err
+		return fmt.Errorf("can't clear data in db %w", err)
 	}
 	if err := b.addIndex(index); err != nil {
-		return err
+		return fmt.Errorf("can't add indexes into db %w", err)
 	}
 	return nil
 }
@@ -111,7 +111,7 @@ func (b *Base) getTokenID(query []string) ([]int, error) {
 		WhereIn("word IN (?)", query).
 		Select(&wordIds)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("can't get token from db %w", err)
 	}
 	return wordIds, nil
 }
@@ -133,8 +133,7 @@ func (b *Base) GetMatches(rawQuery string) ([]index.MatchList, error) {
 		Order("matches DESC").
 		Select(&result)
 	if err != nil {
-		zl.Fatal().Err(err).Msg("cant get results")
-		return nil, fmt.Errorf("error: %w", err)
+		return nil, fmt.Errorf("cant get results: %w", err)
 	}
 	return result, nil
 }

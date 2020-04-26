@@ -21,7 +21,7 @@ type WordInfo struct {
 type InvMap map[string][]WordInfo
 
 type StraightIndex struct {
-	FileName string
+	Filename string
 	Text     string
 	Mutex    *sync.Mutex
 	Wg       *sync.WaitGroup

@@ -21,7 +21,7 @@ func IndexBuilder(path string /*InvertedIndexMap *index.InvMap*/) (index.InvMap,
 		for input := range channel {
 			input.Wg.Add(1)
 			input.Mutex.Lock()
-			indexMap.InvertIndex(input.Text, input.FileName)
+			indexMap.InvertIndex(input.Text, input.Filename)
 			input.Mutex.Unlock()
 			input.Wg.Done()
 		}
@@ -47,7 +47,7 @@ func asyncRead(wg *sync.WaitGroup, path string, file os.FileInfo, mutex *sync.Mu
 	checkError(err)
 
 	info := index.StraightIndex{
-		FileName: strings.TrimRight(file.Name(), ".txt"),
+		Filename: strings.TrimRight(file.Name(), ".txt"),
 		Text:     string(text),
 		Wg:       wg,
 		Mutex:    mutex,
