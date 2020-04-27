@@ -34,7 +34,7 @@ func main() {
 	webFlag := flag.Bool("web", false, "input listen interface")
 	flag.Parse()
 	if flag.NArg() != 1 {
-		zlog.Err(errors.New("flag error")).Msg("there's wrong number of input arguments")
+		zlog.Fatal().Err(errors.New("flag error")).Msg("there's wrong number of input arguments")
 	}
 
 	InvertedIndexMap := index.NewInvMap()
