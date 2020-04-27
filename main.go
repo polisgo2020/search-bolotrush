@@ -36,7 +36,6 @@ func main() {
 	if flag.NArg() != 1 {
 		zlog.Fatal().Err(errors.New("flag error")).Msg("there's wrong number of input arguments")
 	}
-
 	InvertedIndexMap := index.NewInvMap()
 	textBuilder(flag.Args()[0], &InvertedIndexMap)
 	if *fileFlag {
@@ -53,7 +52,6 @@ func main() {
 			fmt.Println("There's no results :(")
 		}
 	}
-
 	if *webFlag {
 		server, err := web.NewServer(cfg.Listen, InvertedIndexMap)
 		if err != nil {
@@ -68,7 +66,7 @@ func main() {
 func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
-		zlog.Fatal().Err(err)
+		zlog.Fatal().Err(err).Msg("can not read path")
 	}
 	channel := make(chan index.StraightIndex)
 	wg := &sync.WaitGroup{}
@@ -80,7 +78,9 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 		go func(file os.FileInfo) {
 			defer wg.Done()
 			text, err := ioutil.ReadFile(path + "/" + file.Name())
-			checkError(err)
+			if err != nil {
+				zlog.Fatal().Err(err).Msg("can not read file")
+			}
 
 			info := index.StraightIndex{
 				Filename: strings.TrimRight(file.Name(), ".txt"),
@@ -97,20 +97,19 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 
 func writeMapToFile(inputMap index.InvMap) {
 	file, err := os.Create("out.txt")
-	checkError(err)
+	if err != nil {
+		zlog.Fatal().Err(err).Msg("can not create out file")
+	}
 
 	for key, value := range inputMap {
 		strSlice := index.GetDocStrSlice(value)
 		_, err := file.WriteString(key + ": {" + strings.Join(strSlice, ",") + "}\n")
-		checkError(err)
+		if err != nil {
+			zlog.Fatal().Err(err).Msg("can not write text to file")
+		}
 	}
 	err = file.Close()
-	checkError(err)
-}
-
-func checkError(err error) {
-
 	if err != nil {
-		zlog.Fatal().Err(err)
+		zlog.Fatal().Err(err).Msg("can not close file")
 	}
 }
