@@ -5,24 +5,37 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/polisgo2020/search-bolotrush/config"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 
 	"github.com/polisgo2020/search-bolotrush/index"
 	"github.com/polisgo2020/search-bolotrush/web"
 )
 
 func main() {
+
+	cfg, err := config.Load()
+	if err != nil {
+		zlog.Err(err).Msg("can not load configs")
+	}
+	logLvl, err := zerolog.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		zlog.Err(err).Msg("can not parse loglvl")
+	}
+	zerolog.SetGlobalLevel(logLvl)
+
 	fileFlag := flag.Bool("f", false, "save index to file")
 	searchFlag := flag.String("s", "", "search query")
-	webFlag := flag.String("web", "", "input port")
+	webFlag := flag.Bool("web", false, "input listen interface")
 	flag.Parse()
 	if flag.NArg() != 1 {
-		log.Fatal(errors.New("there's wrong number of input arguments"))
+		zlog.Fatal().Err(errors.New("flag error")).Msg("there's wrong number of input arguments")
 	}
-
 	InvertedIndexMap := index.NewInvMap()
 	textBuilder(flag.Args()[0], &InvertedIndexMap)
 	if *fileFlag {
@@ -33,15 +46,19 @@ func main() {
 		fmt.Println("Search result:")
 		if len(matchListOut) > 0 {
 			for i, match := range matchListOut {
-				fmt.Printf("%d) %s: matches - %d\n", i+1, match.FileName, match.Matches)
+				fmt.Printf("%d) %s: matches - %d\n", i+1, match.Filename, match.Matches)
 			}
 		} else {
 			fmt.Println("There's no results :(")
 		}
 	}
-	if *webFlag != "" {
-		if err := web.RunServer(":"+*webFlag, InvertedIndexMap); err != nil {
-			log.Fatal(err)
+	if *webFlag {
+		server, err := web.NewServer(cfg.Listen, InvertedIndexMap)
+		if err != nil {
+			zlog.Err(err).Msg("can't create server")
+		}
+		if err := server.Run(); err != nil {
+			zlog.Err(err).Msg("can't run server")
 		}
 	}
 }
@@ -49,7 +66,7 @@ func main() {
 func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
-		log.Fatal(err)
+		zlog.Fatal().Err(err).Msg("can not read path")
 	}
 	channel := make(chan index.StraightIndex)
 	wg := &sync.WaitGroup{}
@@ -61,10 +78,12 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 		go func(file os.FileInfo) {
 			defer wg.Done()
 			text, err := ioutil.ReadFile(path + "/" + file.Name())
-			checkError(err)
+			if err != nil {
+				zlog.Fatal().Err(err).Msg("can not read file")
+			}
 
 			info := index.StraightIndex{
-				FileName: strings.TrimRight(file.Name(), ".txt"),
+				Filename: strings.TrimRight(file.Name(), ".txt"),
 				Text:     string(text),
 				Wg:       wg,
 				Mutex:    mutex,
@@ -78,20 +97,19 @@ func textBuilder(path string, InvertedIndexMap *index.InvMap) {
 
 func writeMapToFile(inputMap index.InvMap) {
 	file, err := os.Create("out.txt")
-	checkError(err)
+	if err != nil {
+		zlog.Fatal().Err(err).Msg("can not create out file")
+	}
 
 	for key, value := range inputMap {
 		strSlice := index.GetDocStrSlice(value)
 		_, err := file.WriteString(key + ": {" + strings.Join(strSlice, ",") + "}\n")
-		checkError(err)
+		if err != nil {
+			zlog.Fatal().Err(err).Msg("can not write text to file")
+		}
 	}
 	err = file.Close()
-	checkError(err)
-}
-
-func checkError(err error) {
-
 	if err != nil {
-		log.Fatal(err.Error())
+		zlog.Fatal().Err(err).Msg("can not close file")
 	}
 }
